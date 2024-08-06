@@ -1,0 +1,116 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator erd {
+  provider = "prisma-erd-generator"
+  theme    = "forest"
+  output   = "./ZARweb_erd.pdf"
+}
+
+enum UserType {
+  HOME_OWNER
+  SERVICE_PROVIDER
+  MATERIAL_PROVIDER
+  ADMIN
+  SUPER_ADMIN
+}
+
+model User {
+  id               String            @id @default(cuid())
+  type             UserType
+  email            String            @unique
+  password         String            @default("DEFAULT")
+  passcode         Int               @default(000000)
+  is_admin         Boolean           @default(false)
+  is_verified      Boolean           @default(false)
+  have_access      Boolean           @default(false)
+  HomeOwner        HomeOwner?
+  ServiceProvider  ServiceProvider?
+  MaterialProvider MaterialProvider?
+}
+
+model HomeOwner {
+  id      String @id @default(cuid())
+  name    String
+  mobile  String
+  intrest String
+  userId  String @unique
+  User    User   @relation(fields: [userId], references: [id])
+}
+
+model ServiceProvider {
+  id             String   @id @default(cuid())
+  name           String
+  mobile         String
+  firm_name      String
+  firm_address   String
+  bio            String
+  categoryId     String
+  social_links   String[]
+  profile_doc    String
+  gallery        String[]
+  profile_pic    String
+  userId         String   @unique
+  brand_category Category @relation(fields: [categoryId], references: [id])
+  User           User     @relation(fields: [userId], references: [id])
+}
+
+model MaterialProvider {
+  id                 String      @id @default(cuid())
+  brand_name         String
+  company_name       String
+  company_address    String
+  contact_person     String
+  mobile             String
+  project_img        String
+  bio                String
+  subCategoryId      String
+  brand_sub_category SubCategory @relation(fields: [subCategoryId], references: [id])
+  categoryId         String
+  brand_category     Category    @relation(fields: [categoryId], references: [id])
+  userId             String      @unique
+  User               User        @relation(fields: [userId], references: [id])
+}
+
+model ServiceType {
+  id             String     @id @default(cuid())
+  name           String     @unique
+  background_img String
+  description    String
+  Category       Category[]
+}
+
+model Category {
+  id               String             @id @default(cuid())
+  name             String             @unique
+  // type             UserType
+  type             ServiceType        @relation(fields: [serviceTypeId], references: [id])
+  description      String
+  background_img   String
+  sub_categories   SubCategory[]
+  MaterialProvider MaterialProvider[]
+  serviceTypeId    String
+  ServiceProvider  ServiceProvider[]
+}
+
+model SubCategory {
+  id               String             @id @default(cuid())
+  name             String             @unique
+  description      String
+  background_img   String
+  Category         Category?          @relation(fields: [categoryId], references: [id])
+  categoryId       String?
+  MaterialProvider MaterialProvider[]
+}
