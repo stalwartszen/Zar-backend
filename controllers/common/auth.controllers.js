@@ -142,7 +142,7 @@ const registerUser = async (req, res) => {
                 const category = await prismaClient.category.findUnique({
                     where: { id: categoryId }
                 });
-            
+
                 if (!category) {
                     return res.status(400).json({ message: 'Invalid categoryId' });
                 }
@@ -228,7 +228,7 @@ const loginUser = async (req, res) => {
     }
 
     try {
-        const user = await prisma.user.findUnique({ where: { email } });
+        const user = await prismaClient.user.findFirst({ where: { email } });
 
         if (!user) {
             return res.status(404).json({ message: 'User not found' });

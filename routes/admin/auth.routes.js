@@ -8,3 +8,4 @@ router.post('/login',loginAdmin)
 router.post('/giveAccess', authenticateToken, giveAccessToUser)
 
 module.exports = router
+

@@ -15,8 +15,11 @@ const corsOptions = {
 app.use(cors(corsOptions));
 
 app.use('/api', require('./routes/auth.routes'))
-app.use('/api/admin', require('./routes/admin/auth.routes'))
 app.use('/api/cms', require('./routes/cms/service.routes'))
+
+
+app.use('/api/admin', require('./routes/admin/auth.routes'))
+app.use('/api/admin/users', require('./routes/admin/users.routes'))
 
 
 app.listen(8080, () => console.log(chalk.bgMagenta.black('Server is running on 8080')))
