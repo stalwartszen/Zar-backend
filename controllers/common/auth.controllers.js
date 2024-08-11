@@ -139,6 +139,13 @@ const registerUser = async (req, res) => {
                     }
                 });
             } else if (type === 'MATERIAL_PROVIDER') {
+                const category = await prismaClient.category.findUnique({
+                    where: { id: categoryId }
+                });
+            
+                if (!category) {
+                    return res.status(400).json({ message: 'Invalid categoryId' });
+                }
                 await prismaClient.materialProvider.create({
                     data: {
                         name,
@@ -200,6 +207,10 @@ const registerUser = async (req, res) => {
                 }
             } catch (deleteErr) {
                 console.log(chalk.bgRedBright("Failed to delete partially created user"), deleteErr);
+            }
+
+            if (err.code === 'P2003') {
+                return res.status(400).json({ message: 'Invalid categoryId: Foreign key constraint failed' });
             }
 
             return res.status(500).json({ message: "Internal server issue" });

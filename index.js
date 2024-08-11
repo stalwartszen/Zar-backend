@@ -6,7 +6,13 @@ const app = express()
 
 
 app.use(express.json())
-app.use(cors())
+const corsOptions = {
+    origin: '*', // Allows all origins
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE', // Allows specific methods
+    allowedHeaders: ['Content-Type', 'Authorization'] // Allows specific headers
+};
+
+app.use(cors(corsOptions));
 
 app.use('/api', require('./routes/auth.routes'))
 app.use('/api/admin', require('./routes/admin/auth.routes'))
