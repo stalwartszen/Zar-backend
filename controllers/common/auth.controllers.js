@@ -141,14 +141,16 @@ const registerUser = async (req, res) => {
             } else if (type === 'MATERIAL_PROVIDER') {
                 await prismaClient.materialProvider.create({
                     data: {
-                        brand_name,
-                        company_name,
-                        company_address,
-                        contact_person,
+                        name,
                         mobile,
+                        firm_name,
+                        firm_address,
                         bio,
                         categoryId,
-                        project_img: req.files['project_img'] ? req.files['project_img'][0].path : null,
+                        social_links,
+                        profile_doc: req.files['profile_doc'] ? req.files['profile_doc'][0].path : null,
+                        profile_pic: req.files['profile_pic'] ? req.files['profile_pic'][0].path : null,
+                        gallery: req.files['profile_gallery'] ? req.files['profile_gallery'].map(file => file.path) : [],
                         userId: user.id
                     }
                 });

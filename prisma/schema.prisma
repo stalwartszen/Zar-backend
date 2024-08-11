@@ -68,20 +68,20 @@ model ServiceProvider {
 }
 
 model MaterialProvider {
-  id                 String      @id @default(cuid())
-  brand_name         String
-  company_name       String
-  company_address    String
-  contact_person     String
-  mobile             String
-  project_img        String
-  bio                String
-  subCategoryId      String
-  brand_sub_category SubCategory @relation(fields: [subCategoryId], references: [id])
-  categoryId         String
-  brand_category     Category    @relation(fields: [categoryId], references: [id])
-  userId             String      @unique
-  User               User        @relation(fields: [userId], references: [id])
+  id             String       @id @default(cuid())
+  name           String
+  mobile         String
+  firm_name      String
+  firm_address   String
+  bio            String
+  categoryId     String
+  social_links   String[]
+  profile_doc    String
+  gallery        String[]
+  profile_pic    String
+  userId         String       @unique
+  brand_category Category     @relation(fields: [categoryId], references: [id])
+  User           User         @relation(fields: [userId], references: [id])
 }
 
 model ServiceType {
@@ -112,5 +112,4 @@ model SubCategory {
   background_img   String
   Category         Category?          @relation(fields: [categoryId], references: [id])
   categoryId       String?
-  MaterialProvider MaterialProvider[]
 }
