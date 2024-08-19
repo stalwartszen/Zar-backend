@@ -3,18 +3,8 @@ const chalk = require('chalk');
 const bcrypt = require('bcrypt');
 const prismaClient = new prisma.PrismaClient();
 const jwt = require('jsonwebtoken')
-const nodemailer = require('nodemailer')
+const { sent_otp } = require('../../helpers/mailer');
 
-
-const transporter = nodemailer.createTransport({
-    host: 'smtp.hostinger.com',
-    port: 465,
-    secure: true,
-    auth: {
-        user: 'admin@zarluxury.com',
-        pass: 'Zara#24Admin'
-    }
-});
 
 const generateOTP = () => {
     return Math.floor(100000 + Math.random() * 900000);
@@ -27,7 +17,7 @@ const registerAdmin = async (req, res) => {
         console.log(chalk.bgYellowBright("Registration params check failed"), req.body);
         return res.status(400).json({ message: 'Email and password are required' });
     }
-
+    console.log(chalk.bgRed(reqEmail,process.env.ADMIN_EMAIL ))
     try {
         if (reqEmail !== process.env.ADMIN_EMAIL) {
             return res.status(403).json({
@@ -37,14 +27,13 @@ const registerAdmin = async (req, res) => {
 
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        const newAdmin = await prisma.user.create({
+        const newAdmin = await prismaClient.user.create({
             data: {
                 email: email,
                 password: hashedPassword,
                 type: 'ADMIN',
                 is_admin: true,
-                have_access: true,
-                is_verified: true,
+                status: 'VERIFIED'
             }
         });
 
@@ -60,6 +49,9 @@ const registerAdmin = async (req, res) => {
         }
     } catch (err) {
         console.log(chalk.bgYellowBright('Internal Server issue in registerAdmin'), err);
+        if (err.code === 'P2002') {
+            return res.status(400).json({ message: 'User already registered'});
+        }
         return res.status(500).json({
             message: "Internal Server Issue"
         });
@@ -100,8 +92,7 @@ const loginAdmin = async (req, res) => {
                 email: user.email,
                 type: user.type,
                 is_admin: user.is_admin,
-                is_verified: user.is_verified,
-                have_access: user.have_access
+                status: user.status
             }
         });
     } catch (err) {
@@ -131,17 +122,10 @@ const giveAccessToUser = async (req, res) => {
 
         const accessUser = await prismaClient.user.update({
             where: { id: userId },
-            data: { have_access: true, passcode: otp }
+            data: {status : 'AUTHORIZED', passcode: otp }
         });
 
-        const mailOptions = {
-            from: 'admin@zarluxury.com',
-            to: accessUser.email,
-            subject: 'OTP/Passcode ZAR',
-            text: `Zar Login passcode to login first time ${otp}`
-        };
-
-        await transporter.sendMail(mailOptions);
+        await sent_otp(otp, accessUser.email)
 
         return res.status(200).json({
             message: "Access granted successfully",

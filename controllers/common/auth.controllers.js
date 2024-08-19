@@ -1,26 +1,14 @@
 const prisma = require('@prisma/client')
 const chalk = require('chalk')
 const bcrypt = require('bcrypt');
-const nodemailer = require('nodemailer');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const jwt = require('jsonwebtoken')
+const jwt = require('jsonwebtoken');
+const { sent_welcome_mail } = require('../../helpers/mailer');
 const prismaClient = new prisma.PrismaClient()
 
-const transporter = nodemailer.createTransport({
-    host: 'smtp.hostinger.com',
-    port: 465,
-    secure: true,
-    auth: {
-        user: 'admin@zarluxury.com',
-        pass: 'Zara#24Admin'
-    }
-});
 
-const generateOTP = () => {
-    return Math.floor(100000 + Math.random() * 900000);
-};
 
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
@@ -106,6 +94,7 @@ const registerUser = async (req, res) => {
             const user = await prismaClient.user.create({
                 data: {
                     email,
+                    status: 'PENDING',
                     // password: hashedPassword,
                     type
                 }
@@ -169,14 +158,7 @@ const registerUser = async (req, res) => {
                 { expiresIn: '1h' }
             );
 
-            const mailOptions = {
-                from: 'admin@zarluxury.com',
-                to: email,
-                subject: 'Welcome to zar',
-                text: `Wait until admin approves`
-            };
-
-            await transporter.sendMail(mailOptions);
+            await sent_welcome_mail(email)
 
             return res.status(201).json({
                 message: 'User registered successfully. OTP sent to email.',
@@ -186,8 +168,7 @@ const registerUser = async (req, res) => {
                     email: user.email,
                     type: user.type,
                     is_admin: user.is_admin,
-                    is_verified: user.is_verified,
-                    have_access: user.have_access
+                    status: user.status
                 }
             });
 
@@ -254,8 +235,7 @@ const loginUser = async (req, res) => {
                 email: user.email,
                 type: user.type,
                 is_admin: user.is_admin,
-                is_verified: user.is_verified,
-                have_access: user.have_access
+                status: user.status
             }
         });
     } catch (err) {
@@ -282,7 +262,7 @@ const verifyUser = async (req, res) => {
 
         const verifyUser = await prismaClient.user.update({
             where: { id: user.id },
-            data: { is_verified: true }
+            data: { status: 'VERIFIED' }
         })
 
         return res.status(200).json({
@@ -293,8 +273,7 @@ const verifyUser = async (req, res) => {
                 email: verifyUser.email,
                 type: verifyUser.type,
                 is_admin: verifyUser.is_admin,
-                is_verified: verifyUser.is_verified,
-                have_access: verifyUser.have_access
+                status: verifyUser.status
             }
         });
     } catch (err) {
@@ -333,8 +312,7 @@ const setPassword = async (req, res) => {
                 email: setPassToUser.email,
                 type: setPassToUser.type,
                 is_admin: setPassToUser.is_admin,
-                is_verified: setPassToUser.is_verified,
-                have_access: setPassToUser.have_access
+                status: setPassToUser.status
             }
         });
 
@@ -346,9 +324,125 @@ const setPassword = async (req, res) => {
     }
 }
 
+
+const updateUser = async (req, res) => {
+    const uploadMiddleware = upload.fields([
+        { name: 'profile_gallery', maxCount: 10 },
+        { name: 'profile_pic', maxCount: 1 },
+        { name: 'profile_doc', maxCount: 1 },
+        { name: 'project_img', maxCount: 1 }
+    ]);
+
+    uploadMiddleware(req, res, async function (err) {
+        if (err instanceof multer.MulterError) {
+            return res.status(400).json({ message: err.message });
+        } else if (err) {
+            return res.status(500).json({ message: err.message });
+        }
+
+        const { userId } = req.body;
+        const { name, mobile, firm_name, firm_address, bio, categoryId, social_links } = req.body;
+
+        if (!userId) {
+            return res.status(400).json({ message: 'User ID is required' });
+        }
+
+        try {
+            const user = await prismaClient.user.findUnique({
+                where: { id: userId }
+            });
+
+            if (!user) {
+                return res.status(404).json({ message: 'User not found' });
+            }
+
+            // Fetch existing images if needed
+            let existingGallery = [];
+            let existingProfilePic;
+            let existingProfileDoc;
+
+            if (user.type === 'SERVICE_PROVIDER' || user.type === 'MATERIAL_PROVIDER') {
+                const userTypeTable = user.type === 'SERVICE_PROVIDER' ? prismaClient.serviceProvider : prismaClient.materialProvider;
+
+                const userData = await userTypeTable.findUnique({
+                    where: { userId }
+                });
+
+                existingGallery = userData.gallery || [];
+                existingProfilePic = userData.profile_pic;
+                existingProfileDoc = userData.profile_doc;
+            }
+
+            // Handle uploaded files and replace if needed
+            const profileGallery = req.files['profile_gallery'] ? req.files['profile_gallery'].map(file => file.path) : existingGallery;
+            const profilePic = req.files['profile_pic'] ? req.files['profile_pic'][0].path : existingProfilePic;
+            const profileDoc = req.files['profile_doc'] ? req.files['profile_doc'][0].path : existingProfileDoc;
+
+            // Remove old images that are replaced
+            if (profilePic && existingProfilePic && profilePic !== existingProfilePic) {
+                if (fs.existsSync(existingProfilePic)) {
+                    fs.unlinkSync(existingProfilePic);
+                }
+            }
+
+            if (profileDoc && existingProfileDoc && profileDoc !== existingProfileDoc) {
+                if (fs.existsSync(existingProfileDoc)) {
+                    fs.unlinkSync(existingProfileDoc);
+                }
+            }
+
+            existingGallery.forEach(image => {
+                if (!profileGallery.includes(image)) {
+                    if (fs.existsSync(image)) {
+                        fs.unlinkSync(image);
+                    }
+                }
+            });
+
+            // Update user details
+            const updatedData = {
+                ...(name && { name }),
+                ...(mobile && { mobile }),
+                ...(firm_name && { firm_name }),
+                ...(firm_address && { firm_address }),
+                ...(bio && { bio }),
+                ...(categoryId && { categoryId }),
+                ...(social_links && { social_links }),
+                ...(profilePic && { profile_pic: profilePic }),
+                ...(profileDoc && { profile_doc: profileDoc }),
+                ...(profileGallery.length && { gallery: profileGallery }),
+            };
+
+            if (user.type === 'SERVICE_PROVIDER') {
+                await prismaClient.serviceProvider.update({
+                    where: { userId },
+                    data: updatedData,
+                });
+            } else if (user.type === 'MATERIAL_PROVIDER') {
+                await prismaClient.materialProvider.update({
+                    where: { userId },
+                    data: updatedData,
+                });
+            } else if (user.type === 'HOME_OWNER') {
+                await prismaClient.homeOwner.update({
+                    where: { userId },
+                    data: updatedData,
+                });
+            }
+
+            return res.status(200).json({ message: 'User updated successfully' });
+        } catch (err) {
+            console.log(chalk.bgRedBright("Failed to update user"), err);
+            return res.status(500).json({ message: "Internal server issue" });
+        }
+    });
+};
+
+
 module.exports = {
     registerUser,
     loginUser,
     setPassword,
-    verifyUser
+    verifyUser,
+    updateUser
 }

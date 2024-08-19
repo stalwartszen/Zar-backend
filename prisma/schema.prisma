@@ -27,27 +27,38 @@ enum UserType {
   SUPER_ADMIN
 }
 
+enum Status {
+  PENDING
+  LINKED
+  AUTHORIZED
+  VERIFIED
+  UNVERIFIED
+}
+
 model User {
   id               String            @id @default(cuid())
   type             UserType
   email            String            @unique
   password         String            @default("DEFAULT")
   passcode         Int               @default(000000)
-  is_admin         Boolean           @default(false)
-  is_verified      Boolean           @default(false)
-  have_access      Boolean           @default(false)
+  is_admin         Boolean           @default(false) // admin
+  // is_verified      Boolean           @default(false)
+  // have_access      Boolean           @default(false) 
+  payment_link     String?
+  status           Status
   HomeOwner        HomeOwner?
   ServiceProvider  ServiceProvider?
   MaterialProvider MaterialProvider?
 }
 
 model HomeOwner {
-  id      String @id @default(cuid())
-  name    String
-  mobile  String
-  intrest String
-  userId  String @unique
-  User    User   @relation(fields: [userId], references: [id])
+  id          String  @id @default(cuid())
+  name        String
+  mobile      String
+  intrest     String
+  profile_pic String?
+  userId      String  @unique
+  User        User    @relation(fields: [userId], references: [id])
 }
 
 model ServiceProvider {
@@ -62,13 +73,14 @@ model ServiceProvider {
   profile_doc    String
   gallery        String[]
   profile_pic    String
+  brand_logo     String?
   userId         String   @unique
   brand_category Category @relation(fields: [categoryId], references: [id])
   User           User     @relation(fields: [userId], references: [id])
 }
 
 model MaterialProvider {
-  id             String       @id @default(cuid())
+  id             String   @id @default(cuid())
   name           String
   mobile         String
   firm_name      String
@@ -79,9 +91,10 @@ model MaterialProvider {
   profile_doc    String
   gallery        String[]
   profile_pic    String
-  userId         String       @unique
-  brand_category Category     @relation(fields: [categoryId], references: [id])
-  User           User         @relation(fields: [userId], references: [id])
+  brand_logo     String?
+  userId         String   @unique
+  brand_category Category @relation(fields: [categoryId], references: [id])
+  User           User     @relation(fields: [userId], references: [id])
 }
 
 model ServiceType {
@@ -89,6 +102,7 @@ model ServiceType {
   name           String     @unique
   background_img String
   description    String
+  is_live        Boolean    @default(false)
   Category       Category[]
 }
 
@@ -106,10 +120,10 @@ model Category {
 }
 
 model SubCategory {
-  id               String             @id @default(cuid())
-  name             String             @unique
-  description      String
-  background_img   String
-  Category         Category?          @relation(fields: [categoryId], references: [id])
-  categoryId       String?
+  id             String    @id @default(cuid())
+  name           String    @unique
+  description    String
+  background_img String
+  Category       Category? @relation(fields: [categoryId], references: [id])
+  categoryId     String?
 }
