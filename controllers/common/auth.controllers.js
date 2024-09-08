@@ -366,23 +366,23 @@ const updateUser = async (req, res) => {
             return res.status(500).json({ message: err.message });
         }
 
-        const { userId } = req.body;
-        const { name, mobile, firm_name, firm_address, bio, categoryId, social_links } = req.body;
-
-        if (!userId) {
+        const { suid } = req.params;
+        const { name, mobile, intrest, firm_name, firm_address, bio, categoryId, instagram, facebook, linkedin } = req.body;
+        console.log(suid)
+        if (!suid) {
             return res.status(400).json({ message: 'User ID is required' });
         }
 
         try {
             const user = await prismaClient.user.findUnique({
-                where: { id: userId }
+                where: { id: suid }
             });
 
             if (!user) {
                 return res.status(404).json({ message: 'User not found' });
             }
 
-            // Fetch existing images if needed
+
             let existingGallery = [];
             let existingProfilePic;
             let existingProfileDoc;
@@ -391,67 +391,73 @@ const updateUser = async (req, res) => {
                 const userTypeTable = user.type === 'SERVICE_PROVIDER' ? prismaClient.serviceProvider : prismaClient.materialProvider;
 
                 const userData = await userTypeTable.findUnique({
-                    where: { userId }
+                    where: { suid }
                 });
 
                 existingGallery = userData.gallery || [];
                 existingProfilePic = userData.profile_pic;
                 existingProfileDoc = userData.profile_doc;
             }
+            let profileGallery, profilePic, profileDoc = null
 
-            // Handle uploaded files and replace if needed
-            const profileGallery = req.files['profile_gallery'] ? req.files['profile_gallery'].map(file => file.path) : existingGallery;
-            const profilePic = req.files['profile_pic'] ? req.files['profile_pic'][0].path : existingProfilePic;
-            const profileDoc = req.files['profile_doc'] ? req.files['profile_doc'][0].path : existingProfileDoc;
-
-            // Remove old images that are replaced
-            if (profilePic && existingProfilePic && profilePic !== existingProfilePic) {
-                if (fs.existsSync(existingProfilePic)) {
-                    fs.unlinkSync(existingProfilePic);
-                }
-            }
-
-            if (profileDoc && existingProfileDoc && profileDoc !== existingProfileDoc) {
-                if (fs.existsSync(existingProfileDoc)) {
-                    fs.unlinkSync(existingProfileDoc);
-                }
-            }
-
-            existingGallery.forEach(image => {
-                if (!profileGallery.includes(image)) {
-                    if (fs.existsSync(image)) {
-                        fs.unlinkSync(image);
+            // upload fieks 
+            if (user.type === 'SERVICE_PROVIDER' || user.type === 'MATERIAL_PROVIDER') {
+                profileGallery = req.files['profile_gallery'] ? req.files['profile_gallery'].map(file => file.path) : existingGallery;
+                profilePic = req.files['profile_pic'] ? req.files['profile_pic'][0].path : existingProfilePic;
+                profileDoc = req.files['profile_doc'] ? req.files['profile_doc'][0].path : existingProfileDoc;
+                if (profilePic && existingProfilePic && profilePic !== existingProfilePic) {
+                    if (fs.existsSync(existingProfilePic)) {
+                        fs.unlinkSync(existingProfilePic);
                     }
                 }
-            });
+                if (profileDoc && existingProfileDoc && profileDoc !== existingProfileDoc) {
+                    if (fs.existsSync(existingProfileDoc)) {
+                        fs.unlinkSync(existingProfileDoc);
+                    }
+                }
+    
+                existingGallery.forEach(image => {
+                    if (!profileGallery.includes(image)) {
+                        if (fs.existsSync(image)) {
+                            fs.unlinkSync(image);
+                        }
+                    }
+                });
+            }
+            // old images to be removed lol
 
-            // Update user details
+
             const updatedData = {
                 ...(name && { name }),
+                ...(intrest && { intrest }),
                 ...(mobile && { mobile }),
                 ...(firm_name && { firm_name }),
                 ...(firm_address && { firm_address }),
                 ...(bio && { bio }),
+                ...(instagram && { instagram }),
+                ...(linkedin && { linkedin }),
+                ...(facebook && { facebook }),
                 ...(categoryId && { categoryId }),
-                ...(social_links && { social_links }),
                 ...(profilePic && { profile_pic: profilePic }),
                 ...(profileDoc && { profile_doc: profileDoc }),
-                ...(profileGallery.length && { gallery: profileGallery }),
+                ...(profileGallery?.length && { gallery: profileGallery }),
+
             };
 
             if (user.type === 'SERVICE_PROVIDER') {
                 await prismaClient.serviceProvider.update({
-                    where: { userId },
+                    where: { userId: suid },
                     data: updatedData,
                 });
             } else if (user.type === 'MATERIAL_PROVIDER') {
                 await prismaClient.materialProvider.update({
-                    where: { userId },
+                    where: { userId: suid },
                     data: updatedData,
                 });
             } else if (user.type === 'HOME_OWNER') {
+                console.log(updatedData)
                 await prismaClient.homeOwner.update({
-                    where: { userId },
+                    where: { userId: suid },
                     data: updatedData,
                 });
             }
@@ -464,17 +470,17 @@ const updateUser = async (req, res) => {
     });
 };
 
-const getProfile = async(req, res) => {
+const getProfile = async (req, res) => {
     const userId = req.user?.userId
     try {
         const user = await prismaClient.user.findUnique({
-            where : {
-                id :userId
+            where: {
+                id: userId
             },
-            include : {
+            include: {
                 HomeOwner: true,
                 ServiceProvider: true,
-                MaterialProvider : true
+                MaterialProvider: true
             }
         })
         return res.status(200).json({ message: 'User fetched successfully', user: user });
@@ -484,6 +490,80 @@ const getProfile = async(req, res) => {
     }
 }
 
+const getServiceUsersById = async (req, res) => {
+    const { suid } = req.params
+    const userId = req.user?.userId
+
+    try {
+        console.log(suid, userId)
+        const serviceProvider = await prismaClient.serviceProvider.findUnique({
+            where: {
+                userId: suid
+            },
+            include: {
+                brand_category: true,
+                User: true
+            }
+        })
+
+        return res.status(200).json({ message: "Gotcha! data for ", user: serviceProvider })
+    } catch (err) {
+        console.log(err)
+        return res.status(500).json({
+            message: "Internal Server Error"
+        })
+    }
+}
+
+const getHomeOwnerUsersById = async (req, res) => {
+    const { suid } = req.params
+    const userId = req.user?.userId
+
+    try {
+        console.log(suid, userId)
+        const serviceProvider = await prismaClient.homeOwner.findUnique({
+            where: {
+                userId: suid
+            },
+            include: {
+                User: true
+            }
+        })
+
+        return res.status(200).json({ message: "Gotcha! data for ", user: serviceProvider })
+    } catch (err) {
+        console.log(err)
+        return res.status(500).json({
+            message: "Internal Server Error"
+        })
+    }
+}
+
+const getMaterialUsersById = async (req, res) => {
+    const { suid } = req.params
+    const userId = req.user?.userId
+
+    try {
+        console.log(suid, userId)
+        const serviceProvider = await prismaClient.materialProvider.findUnique({
+            where: {
+                userId: suid
+            },
+            include: {
+                brand_category: true,
+                brand_subcategory: true,
+                User: true
+            }
+        })
+
+        return res.status(200).json({ message: "Gotcha! data for ", user: serviceProvider })
+    } catch (err) {
+        console.log(err)
+        return res.status(500).json({
+            message: "Internal Server Error"
+        })
+    }
+}
 
 module.exports = {
     registerUser,
@@ -491,5 +571,8 @@ module.exports = {
     setPassword,
     verifyUser,
     updateUser,
-    getProfile
+    getProfile,
+    getServiceUsersById,
+    getMaterialUsersById,
+    getHomeOwnerUsersById
 }
