@@ -22,7 +22,19 @@ const storage = multer.diskStorage({
 const upload = multer({ storage: storage })
 
 const addService = async (req, res) => {
+    const adminId = req.user?.userId
     try {
+        console.log(adminId)
+        const adminUser = await prismaClient.user.findUnique({
+            where: {
+                id: adminId,
+                type: 'ADMIN'
+            }
+        });
+
+        if (!adminUser) {
+            return res.status(401).json({ message: "Unauthorized User" })
+        }
         upload.single('background_img')(req, res, async (err) => {
             if (err instanceof multer.MulterError) {
                 return res.status(400).json({ message: "File upload error" })
@@ -31,6 +43,7 @@ const addService = async (req, res) => {
             }
 
             const { name, description } = req.body
+            console.log(req.body)
 
             if (!name || !description || !req.file) {
                 console.log(chalk.bgYellow("Service creation params check failed"), req.body, req.file);
@@ -62,6 +75,152 @@ const addService = async (req, res) => {
     }
 }
 
+const updateService = async (req, res) => {
+    const { id } = req.params;
+    const adminId = req.user?.userId;
+
+    try {
+        const adminUser = await prismaClient.user.findUnique({
+            where: {
+                id: adminId,
+                type: 'ADMIN'
+            }
+        });
+
+        if (!adminUser) {
+            return res.status(401).json({ message: "Unauthorized User" });
+        }
+
+        // Use multer to handle file uploads
+        upload.single('background_img')(req, res, async (err) => {
+            if (err instanceof multer.MulterError) {
+                return res.status(400).json({ message: 'File upload error' });
+            } else if (err) {
+                return res.status(500).json({ message: 'Internal server error' });
+            }
+
+            const { name, description } = req.body;
+
+            const existingService = await prismaClient.serviceType.findUnique({
+                where: { id: id },
+            });
+
+            if (!existingService) {
+                return res.status(404).json({ message: 'Service not found' });
+            }
+
+            const updateData = {
+                name: name || existingService.name,
+                description: description || existingService.description,
+            };
+
+            if (req.file) {
+                updateData.background_img = `/serviceimages/${req.file.filename}`;
+                // Optionally delete the old file if needed
+                const oldFilePath = path.join(__dirname, '..', '..', 'serviceimages', existingService.background_img.split('/serviceimages/')[1]);
+                if (fs.existsSync(oldFilePath)) {
+                    fs.unlinkSync(oldFilePath);
+                }
+            }
+
+            const updatedService = await prismaClient.serviceType.update({
+                where: { id: id },
+                data: updateData,
+            });
+
+            return res.status(200).json({ message: 'Service updated successfully', service: updatedService });
+        });
+    } catch (error) {
+        console.error('Failed to update service', error);
+        return res.status(500).json({ message: 'Internal server error' });
+    }
+};
+
+
+const toggleServiceLiveStatus = async (req, res) => {
+    const { id } = req.params;
+    const { is_live } = req.body;
+    console.log(req.body)
+    if (typeof is_live !== 'boolean') {
+        return res.status(400).json({ message: 'Invalid input' });
+    }
+    const adminId = req.user?.userId
+
+    try {
+        const adminUser = await prismaClient.user.findUnique({
+            where: {
+                id: adminId,
+                type: 'ADMIN'
+            }
+        });
+
+        if (!adminUser) {
+            return res.status(401).json({ message: "Unauthorized User" })
+        }
+        const service = await prismaClient.serviceType.update({
+            where: { id },
+            data: { is_live }
+        });
+        res.status(200).json({ message: `Service ${is_live ? 'activated' : 'deactivated'} successfully`, service });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+};
+
+
+const getServices = async (req, res) => {
+    try {
+        const services = await prismaClient.serviceType.findMany({
+            include: {
+                Category: {
+                    include: {
+                        sub_categories: true
+                    }
+                }
+            }
+        })
+
+        return res.status(200).json({ message: "Fetched services successfully", services })
+    } catch (err) {
+        return res.status(500).json({ message: "Internal server error" })
+    }
+}
+
+const deleteService = async (req, res) => {
+    const adminId = req.user?.userId
+    const { serviceId } = req.params
+    try {
+
+        const adminUser = await prismaClient.user.findUnique({
+            where: {
+                id: adminId,
+                type: 'ADMIN'
+            }
+        });
+
+        if (!adminUser) {
+            return res.status(401).json({ message: "Unauthorized User" })
+        }
+
+        const deletedService = await prismaClient.serviceType.delete({
+            where: {
+                id: serviceId
+            }
+        })
+
+        console.log(deletedService)
+        return res.status(200).json({ message: 'Deleted service successfully', deleted: deletedService })
+    } catch (err) {
+        console.log(err)
+        return res.status(500).json({ message: "Internal server error" })
+    }
+}
+
 module.exports = {
-    addService
+    addService,
+    getServices,
+    updateService,
+    deleteService,
+    toggleServiceLiveStatus
 }

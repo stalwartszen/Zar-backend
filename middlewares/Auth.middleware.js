@@ -13,7 +13,7 @@ const authenticateToken = (req, res, next) => {
         console.log('req.user', req.user)
         next();
     } catch (err) {
-        res.status(400).json({ message: 'Invalid token' });
+        return res.status(409).json({message : "Unauthorized access. Please try after sometime"})
     }
 };
 

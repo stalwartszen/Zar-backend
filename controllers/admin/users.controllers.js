@@ -1,6 +1,7 @@
 const prisma = require('@prisma/client');
-const { sent_payment_mail } = require('../../helpers/mailer');
-const multer = require('multer')
+const { sent_payment_mail, sent_otp } = require('../../helpers/mailer');
+const multer = require('multer');
+const chalk = require('chalk');
 const prismaClient = new prisma.PrismaClient()
 
 const generateOTP = () => {
@@ -79,11 +80,10 @@ const getUsers = async (req, res) => {
             return res.status(401).json({ message: "Unauthorized User" })
         }
 
-        const getAllUsers = await prismaClient.user.findMany({
-            where: { type: 'HOME_OWNER' },
-            include: {
-                HomeOwner: true
-            },
+        const getAllUsers = await prismaClient.homeOwner.findMany({
+            include:{
+                User: true
+            }
         })
 
         return res.status(200).json({ message: "Gotcha! all users", users: getAllUsers })
@@ -109,8 +109,12 @@ const getMaterialUsers = async (req, res) => {
             return res.status(401).json({ message: "Unauthorized User" })
         }
 
-        const getAllMaterialProviders = await prismaClient.user.findMany({
-            where: { type: 'MATERIAL_PROVIDER' }
+        const getAllMaterialProviders = await prismaClient.materialProvider.findMany({
+            include:{
+                User: true,
+                brand_category: true,
+                brand_subcategory: true
+            }
         })
 
         return res.status(200).json({ message: "Gotcha! all material providers", users: getAllMaterialProviders })
@@ -133,12 +137,17 @@ const getServiceUsers = async (req, res) => {
             }
         });
 
+        console.log(adminUser, userId, req.user)
+
         if (!adminUser) {
             return res.status(401).json({ message: "Unauthorized User" })
         }
 
-        const getAllServiceProviders = await prismaClient.user.findMany({
-            where: { type: 'SERVICE_PROVIDER' }
+        const getAllServiceProviders = await prismaClient.serviceProvider.findMany({
+            include: {
+                brand_category: true,
+                User: true
+            }
         })
 
         return res.status(200).json({ message: "Gotcha! all service providers", users: getAllServiceProviders })
@@ -150,9 +159,46 @@ const getServiceUsers = async (req, res) => {
     }
 }
 
+const getServiceUsersById = async (req, res) => {
+    const userId = req.user?.userId
+    const {suid} = req.params
+    try {
+        const adminUser = await prismaClient.user.findUnique({
+            where: {
+                id: userId,
+                type: 'ADMIN'
+            }
+        });
+
+        console.log(adminUser, userId, req.user)
+
+        if (!adminUser) {
+            return res.status(401).json({ message: "Unauthorized User" })
+        }
+
+        const serviceProvider = await prismaClient.serviceProvider.findFirst({
+            where: {
+                userId: suid
+            },
+            include: {
+                brand_category: true,
+                User: true
+            }
+        })
+
+        return res.status(200).json({ message: "Gotcha! data for " + serviceProvider.name, user: serviceProvider })
+    } catch (err) {
+        console.log(err)
+        return res.status(500).json({
+            message: "Internal Server Error"
+        })
+    }
+}
+
 const sentPaymentLink = async (req, res) => {
     const adminId = req.user?.userId
     const { userId, payment_link } = req.body
+    console.log(userId,payment_link)
     if (!userId || !payment_link) {
         return res.status(401).json({ message: "Failed to proceed" })
     }
@@ -281,7 +327,7 @@ const updateUser = async (req, res) => {
         }
 
         const { userId } = req.body;
-        const { name, mobile, firm_name, firm_address, bio, categoryId, social_links } = req.body;
+        const { name, mobile, firm_name, firm_address, bio, categoryId, instagram, facebook, linkedin } = req.body;
 
         if (!userId) {
             return res.status(400).json({ message: 'User ID is required' });
@@ -345,11 +391,14 @@ const updateUser = async (req, res) => {
                 ...(firm_name && { firm_name }),
                 ...(firm_address && { firm_address }),
                 ...(bio && { bio }),
+                ...(instagram && { instagram }),
+                ...(linkedin && { linkedin }),
+                ...(facebook && { facebook }),
                 ...(categoryId && { categoryId }),
-                ...(social_links && { social_links }),
                 ...(profilePic && { profile_pic: profilePic }),
                 ...(profileDoc && { profile_doc: profileDoc }),
                 ...(profileGallery.length && { gallery: profileGallery }),
+
             };
 
             if (user.type === 'SERVICE_PROVIDER') {
@@ -379,10 +428,13 @@ const updateUser = async (req, res) => {
 
 
 
+
+
 module.exports = {
     getUsers,
     getMaterialUsers,
     getServiceUsers,
+    getServiceUsersById,
     sentPaymentLink,
     sentPasscodeToUser,
     deleteUser,

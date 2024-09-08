@@ -9,11 +9,9 @@ const { sent_welcome_mail } = require('../../helpers/mailer');
 const prismaClient = new prisma.PrismaClient()
 
 
-
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
         let uploadPath;
-
 
         if (file.fieldname === 'profile_gallery') {
             uploadPath = `uploads/profile_gallery`;
@@ -23,19 +21,26 @@ const storage = multer.diskStorage({
             uploadPath = `uploads/profile_docs`;
         } else if (file.fieldname === 'project_img') {
             uploadPath = `uploads/project_imgs`;
+        } else if (file.fieldname === 'brand_logo') {
+            uploadPath = `uploads/brand_logo`;
         }
 
         fs.mkdirSync(uploadPath, { recursive: true });
         cb(null, uploadPath);
     },
     filename: function (req, file, cb) {
-        cb(null, Date.now() + path.extname(file.originalname));
+        const ext = path.extname(file.originalname); // Get the file extension
+        const baseName = Date.now().toString(); // Base name using timestamp
+        const fileName = ext ? `${baseName}${ext}` : `${baseName}.jpg`; // Fallback to '.jpg' if no extension
+
+        cb(null, fileName);
     }
 });
 
 
+
 const fileFilter = (req, file, cb) => {
-    if (file.fieldname === 'profile_gallery' || file.fieldname === 'profile_pic') {
+    if (file.fieldname === 'profile_gallery' || file.fieldname === 'profile_pic' || file.fieldname === 'brand_logo') {
         if (file.mimetype.startsWith('image/')) {
             cb(null, true);
         } else {
@@ -65,7 +70,8 @@ const registerUser = async (req, res) => {
         { name: 'profile_gallery', maxCount: 10 },
         { name: 'profile_pic', maxCount: 1 },
         { name: 'profile_doc', maxCount: 1 },
-        { name: 'project_img', maxCount: 1 }
+        { name: 'project_img', maxCount: 1 },
+        { name: 'brand_logo', maxCount: 1 }
     ]);
 
     uploadMiddleware(req, res, async function (err) {
@@ -75,7 +81,7 @@ const registerUser = async (req, res) => {
             return res.status(500).json({ message: err.message });
         }
 
-        const { email, type, name, mobile, firm_name, intrest, firm_address, bio, brand_name, company_name, company_address, contact_person, categoryId, social_links } = req.body;
+        const { email, type, name, mobile, firm_name, intrest, firm_address, bio, instagram, facebook, twitter, linkedin, subcategoryId, brand_name, company_name, company_address, contact_person, categoryId, country, state, city, pincode } = req.body;
 
         if (!email || !type) {
             console.log(chalk.bgYellowBright("Registration params check failed"), req.body);
@@ -120,9 +126,17 @@ const registerUser = async (req, res) => {
                         firm_address,
                         bio,
                         categoryId,
-                        social_links,
+                        instagram,
+                        facebook,
+                        twitter,
+                        linkedin,
+                        country,
+                        state,
+                        city,
+                        pincode,
                         profile_doc: req.files['profile_doc'] ? req.files['profile_doc'][0].path : null,
                         profile_pic: req.files['profile_pic'] ? req.files['profile_pic'][0].path : null,
+                        brand_logo: req.files['brand_logo'] ? req.files['brand_logo'][0].path : null,
                         gallery: req.files['profile_gallery'] ? req.files['profile_gallery'].map(file => file.path) : [],
                         userId: user.id
                     }
@@ -141,10 +155,19 @@ const registerUser = async (req, res) => {
                         mobile,
                         firm_name,
                         firm_address,
+                        country,
+                        state,
+                        city,
+                        pincode,
                         bio,
                         categoryId,
-                        social_links,
+                        subcategoryId,
+                        instagram,
+                        facebook,
+                        twitter,
+                        linkedin,
                         profile_doc: req.files['profile_doc'] ? req.files['profile_doc'][0].path : null,
+                        brand_logo: req.files['brand_logo'] ? req.files['brand_logo'][0].path : null,
                         profile_pic: req.files['profile_pic'] ? req.files['profile_pic'][0].path : null,
                         gallery: req.files['profile_gallery'] ? req.files['profile_gallery'].map(file => file.path) : [],
                         userId: user.id
@@ -154,8 +177,7 @@ const registerUser = async (req, res) => {
 
             const token = jwt.sign(
                 { userId: user.id, email: user.email, type: user.type },
-                process.env.JWT_SECRET,
-                { expiresIn: '1h' }
+                process.env.JWT_SECRET
             );
 
             await sent_welcome_mail(email)
@@ -223,8 +245,7 @@ const loginUser = async (req, res) => {
 
         const token = jwt.sign(
             { userId: user.id, email: user.email, type: user.type },
-            process.env.JWT_SECRET,
-            { expiresIn: '1h' }
+            process.env.JWT_SECRET
         );
 
         return res.status(200).json({
@@ -253,7 +274,7 @@ const verifyUser = async (req, res) => {
         return res.status(400).json({ message: 'Email and passcode are required' });
     }
     try {
-        const user = await prisma.user.findUnique({ where: { email } });
+        const user = await prismaClient.user.findUnique({ where: { email } });
 
         if (!user) {
             return res.status(404).json({ message: 'Please Register first inorder to verify account' });
@@ -264,6 +285,11 @@ const verifyUser = async (req, res) => {
             where: { id: user.id },
             data: { status: 'VERIFIED' }
         })
+
+        const token = jwt.sign(
+            { userId: verifyUser.id, email: verifyUser.email, type: verifyUser.type },
+            process.env.JWT_SECRET
+        );
 
         return res.status(200).json({
             message: "User verified successfully successfully",
@@ -291,7 +317,8 @@ const setPassword = async (req, res) => {
         return res.status(400).json({ message: 'Email and password are required' });
     }
     try {
-        const user = await prisma.user.findUnique({ where: { email } });
+        const user = await prismaClient.user.findUnique({ where: { email } });
+        console.log(chalk.bgYellowBright("setPassword params check failed"), req.body, user);
 
         if (!user) {
             return res.status(404).json({ message: 'Please Register first inorder to set password' });
@@ -306,7 +333,6 @@ const setPassword = async (req, res) => {
         })
         return res.status(200).json({
             message: "Password generated successfully",
-            token: token,
             user: {
                 id: setPassToUser.id,
                 email: setPassToUser.email,
@@ -438,11 +464,32 @@ const updateUser = async (req, res) => {
     });
 };
 
+const getProfile = async(req, res) => {
+    const userId = req.user?.userId
+    try {
+        const user = await prismaClient.user.findUnique({
+            where : {
+                id :userId
+            },
+            include : {
+                HomeOwner: true,
+                ServiceProvider: true,
+                MaterialProvider : true
+            }
+        })
+        return res.status(200).json({ message: 'User fetched successfully', user: user });
+    } catch (err) {
+        console.log(chalk.bgRedBright("Failed to update user"), err);
+        return res.status(500).json({ message: "Internal server issue" });
+    }
+}
+
 
 module.exports = {
     registerUser,
     loginUser,
     setPassword,
     verifyUser,
-    updateUser
+    updateUser,
+    getProfile
 }

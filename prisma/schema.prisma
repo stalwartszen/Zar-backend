@@ -28,10 +28,10 @@ enum UserType {
 }
 
 enum Status {
-  PENDING
-  LINKED
-  AUTHORIZED
-  VERIFIED
+  PENDING // registered
+  LINKED // payment link send
+  AUTHORIZED // verified by admin
+  VERIFIED // entered passcode
   UNVERIFIED
 }
 
@@ -58,7 +58,7 @@ model HomeOwner {
   intrest     String
   profile_pic String?
   userId      String  @unique
-  User        User    @relation(fields: [userId], references: [id])
+  User        User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model ServiceProvider {
@@ -67,34 +67,53 @@ model ServiceProvider {
   mobile         String
   firm_name      String
   firm_address   String
+  country        String
+  state          String
+  city           String
+  pincode        String
   bio            String
   categoryId     String
-  social_links   String[]
+  // social_links   String[]
+  instagram      String?
+  facebook       String?
+  twitter        String?
+  linkedin       String?
   profile_doc    String
   gallery        String[]
   profile_pic    String
   brand_logo     String?
   userId         String   @unique
   brand_category Category @relation(fields: [categoryId], references: [id])
-  User           User     @relation(fields: [userId], references: [id])
+  User           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model MaterialProvider {
-  id             String   @id @default(cuid())
-  name           String
-  mobile         String
-  firm_name      String
-  firm_address   String
-  bio            String
-  categoryId     String
-  social_links   String[]
-  profile_doc    String
-  gallery        String[]
-  profile_pic    String
-  brand_logo     String?
-  userId         String   @unique
-  brand_category Category @relation(fields: [categoryId], references: [id])
-  User           User     @relation(fields: [userId], references: [id])
+  id                String      @id @default(cuid())
+  name              String
+  mobile            String
+  firm_name         String
+  firm_address      String
+  bio               String
+  categoryId        String
+  subcategoryId     String
+  country           String
+  state             String
+  city              String
+  pincode           String
+  // social_links   String[] 
+  instagram         String?
+  facebook          String?
+  twitter           String?
+  linkedin          String?
+  profile_doc       String
+  gallery           String[]
+  profile_pic       String
+  brand_logo        String?
+  userId            String      @unique
+  brand_category    Category    @relation(fields: [categoryId], references: [id])
+  brand_subcategory SubCategory @relation(fields: [subcategoryId], references: [id])
+
+  User User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model ServiceType {
@@ -110,7 +129,7 @@ model Category {
   id               String             @id @default(cuid())
   name             String             @unique
   // type             UserType
-  type             ServiceType        @relation(fields: [serviceTypeId], references: [id])
+  type             ServiceType        @relation(fields: [serviceTypeId], references: [id], onDelete: Cascade)
   description      String
   background_img   String
   sub_categories   SubCategory[]
@@ -120,10 +139,11 @@ model Category {
 }
 
 model SubCategory {
-  id             String    @id @default(cuid())
-  name           String    @unique
-  description    String
-  background_img String
-  Category       Category? @relation(fields: [categoryId], references: [id])
-  categoryId     String?
+  id               String             @id @default(cuid())
+  name             String             @unique
+  description      String
+  background_img   String
+  Category         Category?          @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  categoryId       String?
+  MaterialProvider MaterialProvider[]
 }
