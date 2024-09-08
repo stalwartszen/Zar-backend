@@ -81,7 +81,7 @@ const getUsers = async (req, res) => {
         }
 
         const getAllUsers = await prismaClient.homeOwner.findMany({
-            include:{
+            include: {
                 User: true
             }
         })
@@ -110,7 +110,7 @@ const getMaterialUsers = async (req, res) => {
         }
 
         const getAllMaterialProviders = await prismaClient.materialProvider.findMany({
-            include:{
+            include: {
                 User: true,
                 brand_category: true,
                 brand_subcategory: true
@@ -161,7 +161,7 @@ const getServiceUsers = async (req, res) => {
 
 const getServiceUsersById = async (req, res) => {
     const userId = req.user?.userId
-    const {suid} = req.params
+    const { suid } = req.params
     try {
         const adminUser = await prismaClient.user.findUnique({
             where: {
@@ -198,7 +198,7 @@ const getServiceUsersById = async (req, res) => {
 const sentPaymentLink = async (req, res) => {
     const adminId = req.user?.userId
     const { userId, payment_link } = req.body
-    console.log(userId,payment_link)
+    console.log(userId, payment_link)
     if (!userId || !payment_link) {
         return res.status(401).json({ message: "Failed to proceed" })
     }
@@ -223,8 +223,11 @@ const sentPaymentLink = async (req, res) => {
             return res.status(404).json({ message: "User not found" })
         }
 
+        const username = user.type == 'SERVICE_PROVIDER' ? user.ServiceProvider?.name
+            :
+            user.type == 'MATERIAL_PROVIDER' ? user.MaterialProvider?.name : user.HomeOwner?.name
 
-        await sent_payment_mail(user.email, payment_link)
+        await sent_payment_mail(user.email, payment_link, username)
 
         return res.status(200).json({ message: "Payment link sent successfully" })
     } catch (err) {
@@ -259,8 +262,11 @@ const sentPasscodeToUser = async (req, res) => {
         if (!user) {
             return res.status(404).json({ message: "User not found" })
         }
+        const username = user.type == 'SERVICE_PROVIDER' ? user.ServiceProvider?.name
+            :
+            user.type == 'MATERIAL_PROVIDER' ? user.MaterialProvider?.name : user.HomeOwner?.name
 
-        await sent_otp(otp, user.email)
+        await sent_otp(otp, user.email, username)
 
 
         return res.status(200).json({ message: "Passcode sent to user successfully" })

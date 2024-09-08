@@ -180,7 +180,7 @@ const registerUser = async (req, res) => {
                 process.env.JWT_SECRET
             );
 
-            await sent_welcome_mail(email)
+            await sent_welcome_mail(email, name)
 
             return res.status(201).json({
                 message: 'User registered successfully. OTP sent to email.',

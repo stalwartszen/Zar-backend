@@ -17,7 +17,7 @@ const registerAdmin = async (req, res) => {
         console.log(chalk.bgYellowBright("Registration params check failed"), req.body);
         return res.status(400).json({ message: 'Email and password are required' });
     }
-    console.log(chalk.bgRed(reqEmail,process.env.ADMIN_EMAIL ))
+    console.log(chalk.bgRed(reqEmail, process.env.ADMIN_EMAIL))
     try {
         if (reqEmail !== process.env.ADMIN_EMAIL) {
             return res.status(403).json({
@@ -50,7 +50,7 @@ const registerAdmin = async (req, res) => {
     } catch (err) {
         console.log(chalk.bgYellowBright('Internal Server issue in registerAdmin'), err);
         if (err.code === 'P2002') {
-            return res.status(400).json({ message: 'User already registered'});
+            return res.status(400).json({ message: 'User already registered' });
         }
         return res.status(500).json({
             message: "Internal Server Issue"
@@ -122,10 +122,17 @@ const giveAccessToUser = async (req, res) => {
 
         const accessUser = await prismaClient.user.update({
             where: { id: userId },
-            data: {status : 'AUTHORIZED', passcode: otp }
+            include: {
+                HomeOwner: true,
+                ServiceProvider: true,
+                MaterialProvider: true
+            },
+            data: { status: 'AUTHORIZED', passcode: otp }
         });
-
-        await sent_otp(otp, accessUser.email)
+        const username = accessUser.type == 'SERVICE_PROVIDER' ? accessUser.ServiceProvider?.name
+            :
+            accessUser.type == 'MATERIAL_PROVIDER' ? accessUser.MaterialProvider?.name : accessUser.HomeOwner?.name
+        await sent_otp(otp, accessUser.email, username)
 
         return res.status(200).json({
             message: "Access granted successfully",
