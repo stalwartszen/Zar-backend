@@ -62,7 +62,7 @@ model HomeOwner {
 }
 
 model ServiceProvider {
-  id             String   @id @default(cuid())
+  id             String       @id @default(cuid())
   name           String
   mobile         String
   firm_name      String
@@ -82,9 +82,11 @@ model ServiceProvider {
   gallery        String[]
   profile_pic    String
   brand_logo     String?
-  userId         String   @unique
-  brand_category Category @relation(fields: [categoryId], references: [id])
-  User           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId         String       @unique
+  brand_category Category     @relation(fields: [categoryId], references: [id])
+  User           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  SubCategory    SubCategory? @relation(fields: [subCategoryId], references: [id])
+  subCategoryId  String?
 }
 
 model MaterialProvider {
@@ -128,14 +130,13 @@ model ServiceType {
 model Category {
   id               String             @id @default(cuid())
   name             String             @unique
-  // type             UserType
   type             ServiceType        @relation(fields: [serviceTypeId], references: [id], onDelete: Cascade)
   description      String
   background_img   String
-  sub_categories   SubCategory[]
+  subCategories    SubCategory[]      @relation("CategorySubCategories")
   MaterialProvider MaterialProvider[]
-  serviceTypeId    String
   ServiceProvider  ServiceProvider[]
+  serviceTypeId    String
 }
 
 model SubCategory {
@@ -143,7 +144,8 @@ model SubCategory {
   name             String             @unique
   description      String
   background_img   String
-  Category         Category?          @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  categoryId       String?
+  parentCategory   Category           @relation("CategorySubCategories", fields: [parentCategoryId], references: [id])
+  parentCategoryId String
   MaterialProvider MaterialProvider[]
+  ServiceProvider  ServiceProvider[]
 }

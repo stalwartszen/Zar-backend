@@ -33,7 +33,8 @@ app.use('/api/cms', require('./routes/cms/service.routes'))
 app.use('/api/admin', require('./routes/admin/auth.routes'))
 app.use('/api/admin/users', require('./routes/admin/users.routes'))
 
-
+// logic changed
+app.use('/api/v2', require('./routes/advanced/category.routes'))
 
 
 app.listen(8080, () => console.log(chalk.bgMagenta.black('Server is running on 8080')))
