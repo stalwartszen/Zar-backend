@@ -175,7 +175,7 @@ const getServices = async (req, res) => {
             include: {
                 Category: {
                     include: {
-                        sub_categories: true
+                        subCategories: true
                     }
                 }
             }
@@ -183,6 +183,7 @@ const getServices = async (req, res) => {
 
         return res.status(200).json({ message: "Fetched services successfully", services })
     } catch (err) {
+        console.log(err)
         return res.status(500).json({ message: "Internal server error" })
     }
 }

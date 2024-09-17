@@ -5,8 +5,8 @@ const authenticateToken = require('../../middlewares/Auth.middleware')
 const router = require('express').Router()
 
 router.post('/admin/addCategory',authenticateToken,addCategory)
-router.get('/admin/categories', authenticateToken, getCategoryByParentName)
+// router.get('/admin/categories', authenticateToken, getCategoryByParentName)
 
-router.get('/categories', getCategoryTree)
+// router.get('/categories', getCategoryTree)
 
 module.exports = router

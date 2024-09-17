@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -28,10 +22,10 @@ enum UserType {
 }
 
 enum Status {
-  PENDING // registered
-  LINKED // payment link send
-  AUTHORIZED // verified by admin
-  VERIFIED // entered passcode
+  PENDING
+  LINKED
+  AUTHORIZED
+  VERIFIED
   UNVERIFIED
 }
 
@@ -41,9 +35,7 @@ model User {
   email            String            @unique
   password         String            @default("DEFAULT")
   passcode         Int               @default(000000)
-  is_admin         Boolean           @default(false) // admin
-  // is_verified      Boolean           @default(false)
-  // have_access      Boolean           @default(false) 
+  is_admin         Boolean           @default(false)
   payment_link     String?
   status           Status
   HomeOwner        HomeOwner?
@@ -55,97 +47,95 @@ model HomeOwner {
   id          String  @id @default(cuid())
   name        String
   mobile      String
-  intrest     String
+  interest    String?
   profile_pic String?
   userId      String  @unique
   User        User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model ServiceProvider {
-  id             String       @id @default(cuid())
-  name           String
-  mobile         String
-  firm_name      String
-  firm_address   String
-  country        String
-  state          String
-  city           String
-  pincode        String
-  bio            String
-  categoryId     String
-  // social_links   String[]
-  instagram      String?
-  facebook       String?
-  twitter        String?
-  linkedin       String?
-  profile_doc    String
-  gallery        String[]
-  profile_pic    String
-  brand_logo     String?
-  userId         String       @unique
-  brand_category Category     @relation(fields: [categoryId], references: [id])
-  User           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  SubCategory    SubCategory? @relation(fields: [subCategoryId], references: [id])
-  subCategoryId  String?
+  id           String   @id @default(cuid())
+  name         String
+  mobile       String
+  firm_name    String
+  firm_address String
+  country      String
+  state        String
+  city         String
+  pincode      String
+  bio          String
+  profile_doc  String
+  gallery      String[]
+  profile_pic  String
+  brand_logo   String?
+  userId       String   @unique
+  // subCategory    SubCategory  @relation(fields: [subCategoryId], references: [id])
+  // subCategoryId  String
+  User         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  node         Node     @relation("ServiceProviderNode", fields: [nodeId], references: [id])
+  nodeId       String
 }
 
 model MaterialProvider {
-  id                String      @id @default(cuid())
-  name              String
-  mobile            String
-  firm_name         String
-  firm_address      String
-  bio               String
-  categoryId        String
-  subcategoryId     String
-  country           String
-  state             String
-  city              String
-  pincode           String
-  // social_links   String[] 
-  instagram         String?
-  facebook          String?
-  twitter           String?
-  linkedin          String?
-  profile_doc       String
-  gallery           String[]
-  profile_pic       String
-  brand_logo        String?
-  userId            String      @unique
-  brand_category    Category    @relation(fields: [categoryId], references: [id])
-  brand_subcategory SubCategory @relation(fields: [subcategoryId], references: [id])
+  id           String   @id @default(cuid())
+  name         String
+  mobile       String
+  firm_name    String
+  firm_address String
+  bio          String
+  profile_doc  String
+  gallery      String[]
+  profile_pic  String
+  brand_logo   String?
+  userId       String   @unique
+  // subCategory       SubCategory @relation(fields: [subCategoryId], references: [id])
+  // subCategoryId     String
+  User         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  node         Node     @relation("MaterialProviderNode", fields: [nodeId], references: [id])
+  nodeId       String
+}
 
-  User User @relation(fields: [userId], references: [id], onDelete: Cascade)
+model Node {
+  id                String             @id @default(cuid())
+  name              String
+  description       String?
+  background_img    String?
+  parent            Node?              @relation("NodeHierarchy", fields: [parentId], references: [id])
+  parentId          String?
+  children          Node[]             @relation("NodeHierarchy")
+  isService         Boolean            @default(false)
+  serviceProviders  ServiceProvider[]  @relation("ServiceProviderNode")
+  materialProviders MaterialProvider[] @relation("MaterialProviderNode")
+  ServiceType       ServiceType?       @relation(fields: [serviceTypeId], references: [id])
+  serviceTypeId     String?
+  
 }
 
 model ServiceType {
-  id             String     @id @default(cuid())
-  name           String     @unique
+  id             String  @id @default(cuid())
+  name           String  @unique
   background_img String
   description    String
-  is_live        Boolean    @default(false)
-  Category       Category[]
+  is_live        Boolean @default(false)
+  Node           Node[]
 }
 
-model Category {
-  id               String             @id @default(cuid())
-  name             String             @unique
-  type             ServiceType        @relation(fields: [serviceTypeId], references: [id], onDelete: Cascade)
-  description      String
-  background_img   String
-  subCategories    SubCategory[]      @relation("CategorySubCategories")
-  MaterialProvider MaterialProvider[]
-  ServiceProvider  ServiceProvider[]
-  serviceTypeId    String
-}
+// model Category {
+//   id                String     @id @default(cuid())
+//   name              String     @unique
+//   description       String
+//   background_img    String
+//   serviceType       ServiceType @relation(fields: [serviceTypeId], references: [id], onDelete: Cascade)
+//   serviceTypeId     String
+//   nodes             Node[]     @relation("CategoryNodes")
+// }
 
-model SubCategory {
-  id               String             @id @default(cuid())
-  name             String             @unique
-  description      String
-  background_img   String
-  parentCategory   Category           @relation("CategorySubCategories", fields: [parentCategoryId], references: [id])
-  parentCategoryId String
-  MaterialProvider MaterialProvider[]
-  ServiceProvider  ServiceProvider[]
-}
+// model SubCategory {
+//   id                String     @id @default(cuid())
+//   name              String     @unique
+//   description       String
+//   background_img    String
+//   category          Category  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+//   categoryId        String
+//   nodes             Node[]    @relation("SubCategoryNodes")
+// }

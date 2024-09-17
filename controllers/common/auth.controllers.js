@@ -81,7 +81,7 @@ const registerUser = async (req, res) => {
             return res.status(500).json({ message: err.message });
         }
 
-        const { email, type, name, mobile, firm_name, intrest, firm_address, bio, instagram, facebook, twitter, linkedin, subcategoryId, brand_name, company_name, company_address, contact_person, categoryId, country, state, city, pincode } = req.body;
+        const { email, type, name, mobile, firm_name, intrest, firm_address, bio, instagram, facebook, twitter, linkedin, nodeId, brand_name, company_name, company_address, contact_person, country, state, city, pincode } = req.body;
 
         if (!email || !type) {
             console.log(chalk.bgYellowBright("Registration params check failed"), req.body);
@@ -125,7 +125,7 @@ const registerUser = async (req, res) => {
                         firm_name,
                         firm_address,
                         bio,
-                        categoryId,
+                        nodeId,
                         instagram,
                         facebook,
                         twitter,
@@ -142,12 +142,12 @@ const registerUser = async (req, res) => {
                     }
                 });
             } else if (type === 'MATERIAL_PROVIDER') {
-                const category = await prismaClient.category.findUnique({
-                    where: { id: categoryId }
+                const nodeData = await prismaClient.node.findUnique({
+                    where: { id: nodeId }
                 });
 
-                if (!category) {
-                    return res.status(400).json({ message: 'Invalid categoryId' });
+                if (!nodeData) {
+                    return res.status(400).json({ message: 'Invalid node' });
                 }
                 await prismaClient.materialProvider.create({
                     data: {
@@ -160,8 +160,7 @@ const registerUser = async (req, res) => {
                         city,
                         pincode,
                         bio,
-                        categoryId,
-                        subcategoryId,
+                        nodeId,
                         instagram,
                         facebook,
                         twitter,
@@ -213,7 +212,7 @@ const registerUser = async (req, res) => {
             }
 
             if (err.code === 'P2003') {
-                return res.status(400).json({ message: 'Invalid categoryId: Foreign key constraint failed' });
+                return res.status(400).json({ message: 'Invalid nodeId: Foreign key constraint failed' });
             }
 
             return res.status(500).json({ message: "Internal server issue" });
@@ -367,7 +366,7 @@ const updateUser = async (req, res) => {
         }
 
         const { suid } = req.params;
-        const { name, mobile, intrest, firm_name, firm_address, bio, categoryId, instagram, facebook, linkedin } = req.body;
+        const { name, mobile, intrest, firm_name, firm_address, bio, nodeId, instagram, facebook, linkedin } = req.body;
         console.log(suid)
         if (!suid) {
             return res.status(400).json({ message: 'User ID is required' });
@@ -437,7 +436,7 @@ const updateUser = async (req, res) => {
                 ...(instagram && { instagram }),
                 ...(linkedin && { linkedin }),
                 ...(facebook && { facebook }),
-                ...(categoryId && { categoryId }),
+                ...(nodeId && { nodeId }),
                 ...(profilePic && { profile_pic: profilePic }),
                 ...(profileDoc && { profile_doc: profileDoc }),
                 ...(profileGallery?.length && { gallery: profileGallery }),
@@ -501,7 +500,7 @@ const getServiceUsersById = async (req, res) => {
                 userId: suid
             },
             include: {
-                brand_category: true,
+                node: true,
                 User: true
             }
         })
@@ -550,8 +549,7 @@ const getMaterialUsersById = async (req, res) => {
                 userId: suid
             },
             include: {
-                brand_category: true,
-                brand_subcategory: true,
+                node: true,
                 User: true
             }
         })

@@ -26,12 +26,85 @@ const addCategory = async (req, res) => {
     const adminId = req.user?.userId;
 
     try {
+        // Verify that the user is an admin
         const adminUser = await prismaClient.user.findUnique({
             where: { id: adminId }
         });
 
         if (!adminUser || adminUser.type !== 'ADMIN') {
             return res.status(401).json({ message: "Unauthorized user. Only admins can create categories." });
+        }
+
+        // Handle file upload
+        upload.single('background_img')(req, res, async (err) => {
+            if (err instanceof multer.MulterError) {
+                console.error(chalk.bgRed('Multer file upload error: '), err);
+                return res.status(400).json({ message: "File upload error. Please try again." });
+            } else if (err) {
+                console.error(chalk.bgRed('Unexpected file upload error: '), err);
+                return res.status(500).json({ message: "Internal server error during file upload." });
+            }
+
+            const { name, description, serviecTypeId } = req.body;
+            const filename = req.file?.filename;
+
+            if (!name || !description || !filename || !serviecTypeId) {
+                console.warn(chalk.bgYellow("Validation failed"), req.body, req.file);
+                return res.status(400).json({ message: 'Missing required fields: name, description, and background_img file.' });
+            }
+
+            try {
+                let newNode;
+
+
+                const serviceNode = await prismaClient.serviceType.findUnique({
+                    where: { id: serviecTypeId }
+                });
+
+                if (!serviceNode) {
+                    return res.status(404).json({ message: "Parent node not found." });
+                }
+
+                newNode = await prismaClient.node.create({
+                    data: {
+                        name,
+                        description,
+                        isService: true,
+                        background_img: `/categoryimages/${filename}`,
+                        serviceTypeId: serviecTypeId
+                    }
+                });
+
+                return res.status(201).json({ message: "Category created successfully", node: newNode });
+            } catch (error) {
+                if (error.code === 'P2002' && error.meta?.target?.includes('name')) {
+                    console.error(chalk.bgRed("Duplicate node name: "), error);
+                    return res.status(409).json({ message: "A node with this name already exists." });
+                } else if (error.code === 'P2025') {
+                    console.error(chalk.bgRed("Parent node not found: "), error);
+                    return res.status(404).json({ message: "Parent node not found." });
+                } else {
+                    console.error(chalk.bgRed("Prisma error: "), error);
+                    return res.status(500).json({ message: "Internal server error while creating node." });
+                }
+            }
+        });
+    } catch (err) {
+        console.error(chalk.bgRed("Unexpected error while adding category: "), err);
+        return res.status(500).json({ message: "An unexpected error occurred. Please try again later." });
+    }
+};
+
+const addBranch = async (req, res) => {
+    const adminId = req.user?.userId;
+
+    try {
+        const adminUser = await prismaClient.user.findUnique({
+            where: { id: adminId }
+        });
+
+        if (!adminUser || adminUser.type !== 'ADMIN') {
+            return res.status(401).json({ message: "Unauthorized user. Only admins can create branches." });
         }
 
         upload.single('background_img')(req, res, async (err) => {
@@ -43,101 +116,139 @@ const addCategory = async (req, res) => {
                 return res.status(500).json({ message: "Internal server error during file upload." });
             }
 
-            const { name, description, serviceId, parentCategoryId } = req.body;
+            const { name, description, parentId } = req.body;
             const filename = req.file?.filename;
 
-            if (!name || !description || !filename || (serviceId === undefined && !parentCategoryId)) {
+            if (!name || !description || !filename) {
                 console.warn(chalk.bgYellow("Validation failed"), req.body, req.file);
-                return res.status(400).json({ message: 'Missing required fields: name, description, background_img file, and serviceId or parentCategoryId.' });
+                return res.status(400).json({ message: 'Missing required fields: name, description, and background_img file.' });
             }
 
             try {
-                let newCategory;
+                let newNode;
 
-                if (parentCategoryId) {
-                    // Create a subcategory
-                    const parentCategory = await prismaClient.category.findUnique({
-                        where: { id: parentCategoryId }
+                if (parentId) {
+                    const parentNode = await prismaClient.node.findUnique({
+                        where: { id: parentId }
                     });
 
-                    if (!parentCategory) {
-                        return res.status(404).json({ message: "Parent category not found." });
+                    if (!parentNode) {
+                        return res.status(404).json({ message: "Parent node not found." });
                     }
 
-                    newCategory = await prismaClient.subCategory.create({
+                    newNode = await prismaClient.node.create({
                         data: {
                             name,
-                            background_img: `/categoryimages/${filename}`,
                             description,
-                            parentCategoryId
+                            background_img: `/branchimages/${filename}`,
+                            parent: { connect: { id: parentId } }
                         }
                     });
                 } else {
-                    // Create a top-level category
-                    if (!serviceId) {
-                        return res.status(400).json({ message: 'Missing required serviceId for top-level category.' });
-                    }
-
-                    newCategory = await prismaClient.category.create({
+                    // Create a new root branch
+                    newNode = await prismaClient.node.create({
                         data: {
                             name,
-                            background_img: `/categoryimages/${filename}`,
                             description,
-                            serviceTypeId: serviceId
+                            background_img: `/branchimages/${filename}`
                         }
                     });
                 }
 
-                return res.status(201).json({ message: "Category created successfully", category: newCategory });
+                return res.status(201).json({ message: "Branch created successfully", node: newNode });
             } catch (error) {
                 if (error.code === 'P2002' && error.meta?.target?.includes('name')) {
-                    console.error(chalk.bgRed("Duplicate category name: "), error);
-                    return res.status(409).json({ message: "A category or subcategory with this name already exists." });
+                    console.error(chalk.bgRed("Duplicate node name: "), error);
+                    return res.status(409).json({ message: "A branch with this name already exists." });
                 } else if (error.code === 'P2025') {
-                    console.error(chalk.bgRed("Parent category not found: "), error);
-                    return res.status(404).json({ message: "Parent category not found." });
+                    console.error(chalk.bgRed("Parent node not found: "), error);
+                    return res.status(404).json({ message: "Parent node not found." });
                 } else {
                     console.error(chalk.bgRed("Prisma error: "), error);
-                    return res.status(500).json({ message: "Internal server error while creating category." });
+                    return res.status(500).json({ message: "Internal server error while creating branch." });
                 }
             }
         });
     } catch (err) {
-        console.error(chalk.bgRed("Unexpected error while adding category: "), err);
+        console.error(chalk.bgRed("Unexpected error while adding branch: "), err);
         return res.status(500).json({ message: "An unexpected error occurred. Please try again later." });
     }
 };
 
-// Admin: Get Category by Parent Name
-const getCategoryByParentName = async (req, res) => {
-    const adminId = req.user?.userId;
-    const { parentName } = req.query;
+// Function to retrieve a branch by ID
+const getBranchById = async (req, res) => {
+    const { id } = req.params;
 
     try {
-        const adminUser = await prismaClient.user.findUnique({
-            where: { id: adminId }
+        const branch = await prismaClient.node.findUnique({
+            where: { id },
+            include: {
+                children: true
+            }
         });
 
-        if (!adminUser || adminUser.type !== 'ADMIN') {
-            return res.status(401).json({ message: "Unauthorized user. Only admins can access this resource." });
+        if (!branch) {
+            return res.status(404).json({ message: `Branch with ID '${id}' not found.` });
         }
 
-        if (!parentName) {
-            return res.status(400).json({ message: "Parent category name is required." });
-        }
+        return res.status(200).json({
+            id: branch.id,
+            name: branch.name,
+            description: branch.description,
+            background_img: branch.background_img,
+            children: branch.children
+        });
+    } catch (error) {
+        console.error("Error retrieving branch: ", error);
+        return res.status(500).json({ message: "Internal server error." });
+    }
+};
 
-        // Fetch parent category by name
-        const parentCategory = await prismaClient.category.findUnique({
-            where: { name: parentName }
+// Function to retrieve the full tree starting from a specific node
+const getBranchTree = async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        const branch = await prismaClient.node.findUnique({
+            where: { id },
+            include: {
+                children: {
+                    include: {
+                        children: true
+                    }
+                }
+            }
         });
 
-        if (!parentCategory) {
-            return res.status(404).json({ message: `Parent category '${parentName}' not found.` });
+        if (!branch) {
+            return res.status(404).json({ message: `Branch with ID '${id}' not found.` });
         }
 
-        // Fetch all subcategories by parent
-        const subcategories = await prismaClient.subCategory.findMany({
-            where: { parentCategoryId: parentCategory.id },
+        return res.status(200).json({
+            id: branch.id,
+            name: branch.name,
+            description: branch.description,
+            background_img: branch.background_img,
+            children: branch.children
+        });
+    } catch (error) {
+        console.error("Error fetching branch tree:", error);
+        return res.status(500).json({ message: "Internal server error. Please try again later." });
+    }
+};
+
+
+const getLeaves = async (req, res) => {
+    try {
+
+        const leaves = await prismaClient.node.findMany({
+            where: {
+                NOT: {
+                    children: {
+                        some: {}
+                    }
+                }
+            },
             select: {
                 id: true,
                 name: true,
@@ -146,74 +257,60 @@ const getCategoryByParentName = async (req, res) => {
             }
         });
 
-        if (subcategories.length === 0) {
-            return res.status(404).json({ message: `No subcategories found for the parent category '${parentName}'.` });
+        if (leaves.length === 0) {
+            return res.status(404).json({ message: "No leaf nodes found." });
         }
 
         return res.status(200).json({
-            message: `Subcategories for parent category '${parentName}' retrieved successfully.`,
-            parentCategory: {
-                id: parentCategory.id,
-                name: parentCategory.name,
-                description: parentCategory.description,
-                serviceTypeId: parentCategory.serviceTypeId
-            },
-            subcategories
+            message: "Leaf nodes retrieved successfully.",
+            leaves
         });
-    } catch (err) {
-        console.error("Error retrieving categories: ", err);
-        return res.status(500).json({ message: "Internal server error." });
+    } catch (error) {
+        console.error("Error fetching leaf nodes:", error);
+        return res.status(500).json({ message: "Internal server error. Please try again later." });
     }
 };
 
-// Normal Users: Get Category Tree
-const getCategoryTree = async (req, res) => {
-    const { parentName } = req.query;
-
-    if (!parentName) {
-        return res.status(400).json({ message: "Parent category name is required." });
-    }
-
+const getRoots = async (req, res) => {
     try {
-        const parentCategory = await prismaClient.category.findUnique({
-            where: { name: parentName },
-            include: {
-                subCategories: true // Adjusted to match your schema
+
+        const roots = await prismaClient.node.findMany({
+            where: {
+                parentId: null
+            },
+            select: {
+                id: true,
+                name: true,
+                description: true,
+                background_img: true,
+                children: {
+                    select: {
+                        id: true,
+                        name: true
+                    }
+                }
             }
         });
 
-        if (!parentCategory) {
-            return res.status(404).json({ message: `Parent category '${parentName}' not found.` });
+        if (roots.length === 0) {
+            return res.status(404).json({ message: "No root nodes found." });
         }
 
-        const categoryData = {
-            parent: {
-                id: parentCategory.id,
-                name: parentCategory.name,
-                description: parentCategory.description,
-                background_img: parentCategory.background_img,
-            },
-            subcategories: parentCategory.subCategories.map(subcat => ({
-                id: subcat.id,
-                name: subcat.name,
-                description: subcat.description,
-                background_img: subcat.background_img,
-            }))
-        };
-
-        return res.status(200).json(categoryData);
+        return res.status(200).json({
+            message: "Root nodes retrieved successfully.",
+            roots
+        });
     } catch (error) {
-        console.error("Error fetching category tree:", error);
-
-        if (error.code === 'P2025') { 
-            return res.status(404).json({ message: "Category not found." });
-        }
+        console.error("Error fetching root nodes:", error);
         return res.status(500).json({ message: "Internal server error. Please try again later." });
     }
 };
 
 module.exports = {
     addCategory,
-    getCategoryByParentName,
-    getCategoryTree
+    addBranch,
+    getRoots,
+    getBranchById,
+    getBranchTree,
+    getLeaves
 };

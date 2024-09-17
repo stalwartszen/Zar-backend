@@ -20,8 +20,7 @@ app.use('/uploads/profile_gallery', express.static(path.join(__dirname, 'uploads
 app.use(express.json())
 const corsOptions = {
     origin: '*', // Allows all origins
-    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE', // Allows specific methods
-    allowedHeaders: ['Content-Type', 'Authorization'] // Allows specific headers
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE', 
 };
 
 app.use(cors(corsOptions));
