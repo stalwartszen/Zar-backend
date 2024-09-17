@@ -433,9 +433,6 @@ const updateUser = async (req, res) => {
 };
 
 
-
-
-
 module.exports = {
     getUsers,
     getMaterialUsers,

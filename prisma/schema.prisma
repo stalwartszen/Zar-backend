@@ -44,13 +44,15 @@ model User {
 }
 
 model HomeOwner {
-  id          String  @id @default(cuid())
+  id          String     @id @default(cuid())
   name        String
   mobile      String
   interest    String?
   profile_pic String?
-  userId      String  @unique
-  User        User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String     @unique
+  User        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  Community   Community? @relation(fields: [communityId], references: [id])
+  communityId String?
 }
 
 model ServiceProvider {
@@ -108,7 +110,6 @@ model Node {
   materialProviders MaterialProvider[] @relation("MaterialProviderNode")
   ServiceType       ServiceType?       @relation(fields: [serviceTypeId], references: [id])
   serviceTypeId     String?
-  
 }
 
 model ServiceType {
@@ -118,6 +119,13 @@ model ServiceType {
   description    String
   is_live        Boolean @default(false)
   Node           Node[]
+}
+
+model Community {
+  id         String      @id @default(cuid())
+  name       String      @unique
+  passcode   Int
+  HomeOwners HomeOwner[]
 }
 
 // model Category {

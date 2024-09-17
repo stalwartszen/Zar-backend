@@ -6,8 +6,22 @@ const jwt = require('jsonwebtoken')
 const { sent_otp } = require('../../helpers/mailer');
 
 
-const generateOTP = () => {
-    return Math.floor(100000 + Math.random() * 900000);
+const generateOTP = async () => {
+    let passcode;
+    let isUnique = false;
+
+    while (!isUnique) {
+        passcode = Math.floor(100000 + Math.random() * 900000);
+        const existingUser = await prismaClient.user.findFirst({
+            where: { passcode }
+        });
+
+        if (!existingUser) {
+            isUnique = true;
+        }
+    }
+
+    return passcode;
 };
 
 const registerAdmin = async (req, res) => {
@@ -104,47 +118,90 @@ const loginAdmin = async (req, res) => {
 };
 
 const giveAccessToUser = async (req, res) => {
-    const reqUser = req.user.userId
-    const { userId } = req.body
+    const reqUser = req.user.userId;
+    const { userId, communityPasscode } = req.body;
+
     if (!userId) {
         console.log(chalk.bgYellowBright("giveAccessToUser params check failed"), req.body);
-        return res.status(400).json({ message: 'userId are required' });
+        return res.status(400).json({ message: 'userId is required' });
     }
-    try {
-        const exitUser = await prismaClient.user.findFirst({ where: { id: reqUser, is_admin: true } })
 
-        if (!exitUser) {
+    try {
+        const adminUser = await prismaClient.user.findFirst({
+            where: { id: reqUser, is_admin: true }
+        });
+
+        if (!adminUser) {
             return res.status(403).json({
-                message: "Unauthorized: Only specific email allowed for admin controls"
+                message: "Unauthorized: Only admins can grant access"
             });
         }
-        const otp = generateOTP();
 
-        const accessUser = await prismaClient.user.update({
+        // Find the user to grant access
+        const accessUser = await prismaClient.user.findUnique({
             where: { id: userId },
             include: {
                 HomeOwner: true,
                 ServiceProvider: true,
                 MaterialProvider: true
-            },
+            }
+        });
+
+        if (!accessUser) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        // If the user is a HOME_OWNER, verify the community passcode
+        if (accessUser.type === 'HOME_OWNER') {
+            const community = await prismaClient.community.findFirst({
+                where: { passcode: communityPasscode }
+            });
+
+            if (!community) {
+                return res.status(400).json({ message: 'Invalid community passcode' });
+            }
+
+            // Associate the homeowner with the community
+            await prismaClient.homeOwner.update({
+                where: { userId: userId },
+                data: { communityId: community.id }
+            });
+        }
+
+        // Generate a unique OTP for the user
+        const otp = await generateOTP();
+
+        // Update the user's status and passcode
+        const updatedUser = await prismaClient.user.update({
+            where: { id: userId },
             data: { status: 'AUTHORIZED', passcode: otp }
         });
-        const username = accessUser.type == 'SERVICE_PROVIDER' ? accessUser.ServiceProvider?.name
-            :
-            accessUser.type == 'MATERIAL_PROVIDER' ? accessUser.MaterialProvider?.name : accessUser.HomeOwner?.name
-        await sent_otp(otp, accessUser.email, username)
+
+        // Send the OTP to the user
+        const username = accessUser.type === 'SERVICE_PROVIDER' ? accessUser.ServiceProvider?.name
+            : accessUser.type === 'MATERIAL_PROVIDER' ? accessUser.MaterialProvider?.name
+            : accessUser.HomeOwner?.name;
+
+        await sent_otp(otp, updatedUser.email, username);
 
         return res.status(200).json({
             message: "Access granted successfully",
-            user: accessUser
+            user: {
+                id: updatedUser.id,
+                email: updatedUser.email,
+                type: updatedUser.type,
+                is_admin: updatedUser.is_admin,
+                status: updatedUser.status
+            }
         });
+
     } catch (err) {
-        console.log(chalk.bgYellowBright('Internal Server issue in giveAccessToUser'), err);
+        console.log(chalk.bgRedBright('Error in giveAccessToUser'), err);
         return res.status(500).json({
             message: "Internal Server Issue"
         });
     }
-}
+};
 
 module.exports = {
     registerAdmin,

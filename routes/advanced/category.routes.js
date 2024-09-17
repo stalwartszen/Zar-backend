@@ -13,8 +13,6 @@ router.get('/leaves', getLeaves)
 
 router.put('/admin/branch/:id', authenticateToken, updateNode)
 router.delete('/admin/branch/:id', authenticateToken, deleteNode)
-// router.get('/admin/categories', authenticateToken, getCategoryByParentName)
 
-// router.get('/categories', getCategoryTree)
 
 module.exports = router

@@ -273,20 +273,56 @@ const verifyUser = async (req, res) => {
         return res.status(400).json({ message: 'Email and passcode are required' });
     }
     try {
-        const user = await prismaClient.user.findUnique({ where: { email } });
 
-        if (!user) {
-            return res.status(404).json({ message: 'Please Register first inorder to verify account' });
+
+        const community = await prismaClient.community.findFirst({
+            where: { passcode: parseInt(passcode) }
+        });
+
+        console.log(community)
+
+        if (!community) {
+            const user = await prismaClient.user.findUnique({ where: { email, passcode: parseInt(passcode) } });
+
+            if (!user) {
+                return res.status(404).json({ message: 'Please Register first inorder to verify account' });
+            }
+            const verifyUser = await prismaClient.user.update({
+                where: { id: user.id },
+                data: { status: 'VERIFIED' }
+            })
+
+            const token = jwt.sign(
+                { userId: verifyUser.id, email: verifyUser.email, type: verifyUser.type },
+                process.env.JWT_SECRET
+            );
+
+            return res.status(200).json({
+                message: "User verified successfully successfully",
+                token: token,
+                user: {
+                    id: verifyUser.id,
+                    email: verifyUser.email,
+                    type: verifyUser.type,
+                    is_admin: verifyUser.is_admin,
+                    status: verifyUser.status
+                }
+            });
         }
 
 
-        const verifyUser = await prismaClient.user.update({
-            where: { id: user.id },
-            data: { status: 'VERIFIED' }
-        })
+        const user = await prismaClient.user.create({
+            data: {
+                email,
+                status: 'VERIFIED',
+                // password: hashedPassword,
+                type: 'HOME_OWNER'
+            }
+        });
+
 
         const token = jwt.sign(
-            { userId: verifyUser.id, email: verifyUser.email, type: verifyUser.type },
+            { userId: user.id, email: user.email, type: user.type },
             process.env.JWT_SECRET
         );
 
@@ -294,13 +330,14 @@ const verifyUser = async (req, res) => {
             message: "User verified successfully successfully",
             token: token,
             user: {
-                id: verifyUser.id,
-                email: verifyUser.email,
-                type: verifyUser.type,
-                is_admin: verifyUser.is_admin,
-                status: verifyUser.status
+                id: user.id,
+                email: user.email,
+                type: user.type,
+                is_admin: user.is_admin,
+                status: user.status
             }
         });
+
     } catch (err) {
         console.log(chalk.bgYellowBright('Internal Server issue in verifyUser'), err);
         return res.status(500).json({
@@ -310,12 +347,15 @@ const verifyUser = async (req, res) => {
 }
 
 const setPassword = async (req, res) => {
-    const { email, password } = req.body
+    const { email, password, name, mobile, interest, passcode } = req.body
     if (!email || !password) {
         console.log(chalk.bgYellowBright("setPassword params check failed"), req.body);
         return res.status(400).json({ message: 'Email and password are required' });
     }
     try {
+        const community = await prismaClient.community.findFirst({
+            where: { passcode }
+        });
         const user = await prismaClient.user.findUnique({ where: { email } });
         console.log(chalk.bgYellowBright("setPassword params check failed"), req.body, user);
 
@@ -324,12 +364,28 @@ const setPassword = async (req, res) => {
         }
         const hashedPassword = await bcrypt.hash(password, 10);
 
+        if (community) {
+            if (!name || !mobile || !interest) {
+                console.log(chalk.bgYellowBright("setPassword params check failed"), req.body);
+                return res.status(400).json({ message: 'Name, Mobile and intrest are required' });
+            }
+            await prismaClient.homeOwner.create({
+                data: {
+                    name,
+                    mobile,
+                    interest,
+                    communityId: community.id,
+                    userId: user.id
+                }
+            });
+        }
 
         const setPassToUser = await prismaClient.user.update({
             where: { id: user.id },
             data: { password: hashedPassword }
 
         })
+
         return res.status(200).json({
             message: "Password generated successfully",
             user: {
@@ -414,7 +470,7 @@ const updateUser = async (req, res) => {
                         fs.unlinkSync(existingProfileDoc);
                     }
                 }
-    
+
                 existingGallery.forEach(image => {
                     if (!profileGallery.includes(image)) {
                         if (fs.existsSync(image)) {
