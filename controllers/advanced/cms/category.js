@@ -306,11 +306,101 @@ const getRoots = async (req, res) => {
     }
 };
 
+const deleteNode = async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        const adminId = req.user?.userId
+        const adminUser = await prismaClient.user.findUnique({
+            where: {
+                id: adminId,
+                type: 'ADMIN'
+            }
+        });
+
+        if (!adminUser) {
+            return res.status(401).json({ message: "Unauthorized User" })
+        }
+        const node = await prismaClient.node.findUnique({
+            where: { id },
+            include: { children: true }
+        });
+
+        if (!node) {
+            return res.status(404).json({ message: `Node with ID '${id}' not found.` });
+        }
+
+        await prismaClient.node.deleteMany({
+            where: {
+                parentId: id
+            }
+        });
+
+        await prismaClient.node.delete({
+            where: { id }
+        });
+
+        return res.status(200).json({ message: "Node deleted successfully." });
+    } catch (error) {
+        console.error("Error deleting node:", error);
+        return res.status(500).json({ message: "Internal server error. Please try again later." });
+    }
+};
+
+const updateNode = async (req, res) => {
+    const { id } = req.params;
+    const { name, description, background_img, isService, serviceTypeId } = req.body;
+
+    try {
+        const adminId = req.user?.userId
+        const adminUser = await prismaClient.user.findUnique({
+            where: {
+                id: adminId,
+                type: 'ADMIN'
+            }
+        });
+
+        if (!adminUser) {
+            return res.status(401).json({ message: "Unauthorized User" })
+        }
+        const node = await prismaClient.node.findUnique({
+            where: { id }
+        });
+
+        if (!node) {
+            return res.status(404).json({ message: `Node with ID '${id}' not found.` });
+        }
+        const updatedNode = await prismaClient.node.update({
+            where: { id },
+            data: {
+                name,
+                description,
+                background_img,
+                isService,
+                serviceTypeId
+            }
+        });
+
+        return res.status(200).json({ message: "Node updated successfully.", node: updatedNode });
+    } catch (error) {
+        if (error.code === 'P2002' && error.meta?.target?.includes('name')) {
+            console.error("Duplicate node name: ", error);
+            return res.status(409).json({ message: "A node with this name already exists." });
+        } else {
+            console.error("Error updating node:", error);
+            return res.status(500).json({ message: "Internal server error. Please try again later." });
+        }
+    }
+};
+
+
 module.exports = {
     addCategory,
     addBranch,
     getRoots,
     getBranchById,
     getBranchTree,
-    getLeaves
+    getLeaves,
+    deleteNode,
+    updateNode
 };
