@@ -316,6 +316,7 @@ const verifyUser = async (req, res) => {
                 email,
                 status: 'VERIFIED',
                 // password: hashedPassword,
+                passcode:passcode,
                 type: 'HOME_OWNER'
             }
         });
