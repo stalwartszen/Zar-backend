@@ -212,9 +212,13 @@ const getCategory = async (req, res) => {
           name: sid,
         },
         include:{
-            Category:{
-                include:{
-                    sub_categories:true
+            Node:{
+                include :{
+                    children: {
+                        include : {
+                            children : true
+                        }
+                    }
                 }
             }
         }
